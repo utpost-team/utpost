@@ -235,13 +235,13 @@ Den gamla JWT-hemligheten låg i `api/src/config.js` sedan första commiten. Nu 
 
 ```console
 $ git log --oneline -S 'utpost-super-''secret'
-__FIX__
+14695f1 docs: keep the old secret string out of README's git log -S example (M6)
 d9a686b docs: README evidence for config, secret and staging (M6 step 7) (#80)
 7b81540 feat: read JWT_SECRET from the environment, drop the committed secret (M6 step 2)
 6d8b04f Initial commit
 ```
 
-Hemligheten kom in i `6d8b04f` och försvann ur koden i `7b81540`. De två översta commitarna är bara den här README-texten: i `d9a686b` stod kommandot med strängen i klartext, och __FIXSHORT__ tog bort den igen.
+Hemligheten kom in i `6d8b04f` och försvann ur koden i `7b81540`. De två översta commitarna är bara den här README-texten: i `d9a686b` stod kommandot med strängen i klartext, och `14695f1` tog bort den igen.
 
 Värdet är roterat, inte bara flyttat: `JWT_SECRET` skapas med `openssl rand -hex 32` i `infra/azure/skapa-staging.sh` och finns bara som secret (`jwt-secret`) i Container Apps, där variabeln pekar på den med `secretRef`. Det står aldrig i en fil som committas, och GitHub har inga secrets alls (Deploy loggar in med OIDC).
 
