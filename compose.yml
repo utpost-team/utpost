@@ -40,6 +40,7 @@ services:
       # Portarna är containrarnas egna (5432), inte de publicerade (5433).
       DATABASE_URL: postgres://utpost:utpost@postgres:5432/utpost
       MONGO_URL: mongodb://utpost:utpost@mongo:27017/utpost?authSource=admin
+      JWT_SECRET: utpost-dev-secret-byt-i-molnet # M6: lokalt värde. I molnet: en secret i plattformen, aldrig i en fil som committas
       SEED_ON_START: "1" # M6: tom databas vid start → seed + migrate:logs (api/src/boot.js). Seedar bara om users är tom
     # Ingen publicerad port: API:et nås bara av nginx i client-tjänsten (/api och /graphql), inte utifrån.
     # Kör du npm run dev:api på din dator lyssnar det på localhost:4000 som vanligt.
