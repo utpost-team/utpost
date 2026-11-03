@@ -90,6 +90,17 @@ flowchart LR
 
 Lint, format, `npm test` och bygget körs mot `client/`. Typkontrollen täcker även `api/`, och Integration kör `api/`:s tester. `web/` (React-klienten) togs bort i M6, se nedan.
 
+### `web/` borttagen (M6)
+
+En klient byggs, testas och deployas: `client/`. Av de sju sidorna i `web/` fanns fem redan i `client/`, och två portades i M6: Profile (`ProfileView.vue`, `/profil`) och TourDetail (`TourDetailView.vue`, `/turer/:id`).
+
+| `npm ci` i Quality | Paket | Tid | Körning |
+| --- | --- | --- | --- |
+| Före (main, `31c66a8`) | 825 | 51 s | [41624392478](https://github.com/utpost-team/utpost/actions/runs/41624392478/job/125877952378) |
+| Efter (PR #76) | 806 | 51 s | [41625859789](https://github.com/utpost-team/utpost/actions/runs/41625859789/job/125882903064) |
+
+19 paket färre, men ingen mätbar skillnad i tid. React, react-dom, react-router och Vite 5 var en liten del av de drygt 800 paketen. Resten är `client/`:s verktyg (codegen, Vitest, ESLint, vue-tsc) och `api/`, som installeras i samma `npm ci`. Det vi vann är att det inte längre ligger en andra klient i repot som installeras utan att testas.
+
 ## CI Tidsmätning
 
 ```bash
