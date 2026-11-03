@@ -36,8 +36,6 @@ Kräver bara Docker, inte Node.
 
 ```bash
 docker compose up --build -d
-docker compose exec api npm run seed
-docker compose exec api npm run migrate:logs
 ```
 
 Har du Node installerat gör `npm start` samma sak som första raden och `npm stop`
@@ -46,7 +44,7 @@ samma sak som `docker compose down` (med podman om Docker saknas).
 Compose startar fyra tjänster i bakgrunden: `postgres`, `mongo`, `api` och `client`.
 Vue-klienten (nginx) ligger på http://localhost:3001. API:et har ingen egen publicerad port utan nås
 via nginx-proxyn i klienten: http://localhost:3001/api/health och GraphiQL på http://localhost:3001/graphql.
-Seeden och migreringen behövs bara första gången, eftersom datan ligger kvar i volymerna. Följ
+Seeden och migreringen sker av sig själv: compose sätter `SEED_ON_START=1`, så `api/src/boot.js` seedar och kör `migrate:logs` om databasen är tom (M6). Datan ligger sen kvar i volymerna. Följ
 loggarna med `docker compose logs -f`. Stoppa med `docker compose down` (lägg till
 `-v` för att tömma databaserna).
 
@@ -101,7 +99,7 @@ Formatera koden lokalt med `npm run format --workspace=client`.
 ## Struktur
 
 - `api/` – Express + Postgres (Drizzle) + MongoDB (driver). REST under `/api` och GraphQL (graphql-yoga) på `/graphql`, med GraphiQL i webbläsaren på `GET /graphql` i utveckling (`api/src/graphql/`)
-- `client/` – Vue 3 + Vue Router + Pinia + Vite (port 3001). Multi-stage build med Nginx serverar statiska filer och proxar `/api` och `/graphql` till `api:4000`.
+- `client/` – Vue 3 + Vue Router + Pinia + Vite (port 3001). Multi-stage build med Nginx serverar statiska filer och proxar `/api` och `/graphql` till `API_UPSTREAM` (`api:4000` i compose).
 - `shared/` – `@utpost/shared`, API-kontraktet: typerna för det som går mellan `api/` och `client/`. Ren TypeScript, inget bygge. Ändras ett API-svar ändras typen här i samma PR.
 
 ## Mätning före/efter (M5)
@@ -216,34 +214,67 @@ Båda mockar `useQuery` från `@urql/vue`. `npm test`:
       Tests  19 passed (19)
 ```
 
+## Konfiguration och hemligheter (M6)
+
+Allt som skiljer en miljö från en annan läses ur miljön när containern startar, inte när imagen byggs – så samma image kör i compose och i Azure. Kontraktet är `.env.example`: varje namn där finns i varje miljö, som variabel eller som secret. Kodens standardvärden (`api/src/config.js`) gäller bara localhost. Det enda som bakas in vid bygget är `GIT_SHA`, eftersom det beskriver imagen och inte miljön.
+
+nginx läser `API_UPSTREAM` via mallen `client/nginx.conf.template`, som nginx-imagen renderar till `conf.d/default.conf` vid start. Den renderade konfigurationen i compose efter `compose down -v && compose up --build` (kört med podman, så containern heter `utpost_client_1`; med Docker är det `docker compose exec client cat …`):
+
+```console
+$ podman exec utpost_client_1 cat /etc/nginx/conf.d/default.conf | grep proxy_pass
+    proxy_pass http://api:4000;
+    proxy_pass http://api:4000;
+```
+
+| Miljö | `API_UPSTREAM` | Var det sätts | Varför |
+| --- | --- | --- | --- |
+| compose | `api:4000` | `compose.yml` (och standardvärdet i `client/Dockerfile`) | api är en egen tjänst, nås via sitt namn i compose-nätverket |
+| Azure | `localhost:4000` | `infra/azure/staging.yaml` | api är en sidecar i samma app och delar localhost med client |
+
+Den gamla JWT-hemligheten låg i `api/src/config.js` sedan första commiten. Nu läses `JWT_SECRET` ur miljön, och det gamla värdet finns inte i någon fil på `main`:
+
+```console
+$ git log --oneline -S 'utpost-super-secret'
+7b81540 feat: read JWT_SECRET from the environment, drop the committed secret (M6 step 2)
+6d8b04f Initial commit
+```
+
+Värdet är roterat, inte bara flyttat: `JWT_SECRET` skapas med `openssl rand -hex 32` i `infra/azure/skapa-staging.sh` och finns bara som secret (`jwt-secret`) i Container Apps, där variabeln pekar på den med `secretRef`. Det står aldrig i en fil som committas, och GitHub har inga secrets alls (Deploy loggar in med OIDC).
+
 ## I molnet (M6)
 
 Staging kör i **Azure Container Apps** som en app med fyra containrar (`infra/azure/staging.yaml`): client (nginx, enda med ingress), api, Postgres och MongoDB. Appen skapades en gång med `infra/azure/skapa-staging.sh` och skalar till noll mellan passen – första anropet väcker den, och databaserna seedas om vid varje kallstart (`SEED_ON_START=1`). Beslutet och alternativen står i `docs/decisions/hosting.md`.
 
 Staging: https://utpost-team.wonderfulstone-abf1c527.swedencentral.azurecontainerapps.io
 
-`/api/health` i staging, sha lika med `git rev-parse main` (`160792026260a6ff56483fc8b34be1342541ae9e`):
+`/api/health` i staging, sha lika med `git rev-parse main` (`16b4a4ab98f9ceba68046b98115d2e56acda9fd6`, #79, deployad av pipelinen till revisionen `utpost-team--sha-16b4a4a`):
 
 ```console
+$ git rev-parse main
+16b4a4ab98f9ceba68046b98115d2e56acda9fd6
 $ curl -s https://utpost-team.wonderfulstone-abf1c527.swedencentral.azurecontainerapps.io/api/health
-{"ok":true,"version":"1.4.2","sha":"160792026260a6ff56483fc8b34be1342541ae9e","postgres":"ok","mongodb":"ok"}
+{"ok":true,"version":"1.4.2","sha":"16b4a4ab98f9ceba68046b98115d2e56acda9fd6","postgres":"ok","mongodb":"ok"}
 ```
 
-Boot-raderna ur API-loggen (`az containerapp logs show -n utpost-team -g utpost-andreas-stratmann-rg --container api`) – tom databas, seed vid start:
+Boot-raderna ur API-loggen för samma revision (`az containerapp logs show -n utpost-team -g utpost-andreas-stratmann-rg --container api`): tom databas, seed vid start, sedan lyssnar API:et:
 
 ```text
-boot: väntar på Postgres (1/30): connect ECONNREFUSED 127.0.0.1:5432
-boot: väntar på Postgres (2/30): connect ECONNREFUSED 127.0.0.1:5432
-boot: väntar på Postgres (3/30): connect ECONNREFUSED 127.0.0.1:5432
-boot: tom databas – seedar
-Seed klar: 12 användare, 40 guider, 200 turer, 5997 loggpunkter.
-Postgres: 200 turer, 5997 mätpunkter i tour_logs
-MongoDB:  200 skapade, 0 ersatta, 0 borttagna föräldralösa
-Kontroll: dokument 200/200, mätpunkter 5997/5997, stats.points 5997/5997
-Verifierat
-API lyssnar på http://localhost:4000
+2026-11-03T13:15:28Z boot: väntar på Postgres (1/30): connect ECONNREFUSED 127.0.0.1:5432
+2026-11-03T13:15:30Z boot: väntar på Postgres (2/30): connect ECONNREFUSED 127.0.0.1:5432
+2026-11-03T13:15:32Z boot: väntar på Postgres (3/30): connect ECONNREFUSED 127.0.0.1:5432
+2026-11-03T13:15:34Z boot: tom databas – seedar
+2026-11-03T13:15:35Z Seed klar: 12 användare, 40 guider, 200 turer, 5820 loggpunkter.
+2026-11-03T13:15:35Z Postgres: 200 turer, 5820 mätpunkter i tour_logs
+2026-11-03T13:15:35Z MongoDB:  200 skapade, 0 ersatta, 0 borttagna föräldralösa
+2026-11-03T13:15:35Z Kontroll: dokument 200/200, mätpunkter 5820/5820, stats.points 5820/5820
+2026-11-03T13:15:35Z Verifierat
+2026-11-03T13:15:36Z API lyssnar på http://localhost:4000
 ```
+
+Postgres-containern startar samtidigt som api, så boot.js väntar in den (tre försök, ~6 s) innan den seedar. Seeden slumpar mätpunkterna, därför skiljer antalet mellan kallstarter.
+
+Varje merge till `main` byter sha i staging (också den här README-ändringen), så kör `curl` ovan och jämför med `git rev-parse main` för att se vilken commit som kör just nu.
 
 ## Deploy
 
-Fråga Marcus. TODO: update
+Staging skapas en gång med `infra/azure/skapa-staging.sh` (identiteten för pipelinen med `infra/azure/identitet.sh`). Därefter deployar pipelinen vid varje merge till `main`: jobbet *Deploy → Azure staging* loggar in med GitHubs OIDC-token, byter image på `api` och `client` till commitens `sha-<7 tecken>`, väntar tills `/api/health` svarar med samma sha och röktestar `/graphql`. På en PR hoppas jobbet över, och det är inte en status check. Tider och länkar till körningarna står i [`docs/pipeline.md`](docs/pipeline.md).
