@@ -33,6 +33,12 @@ Regler:
   - **Require branches to be up to date before merging** är på – branchen måste
     vara uppdaterad mot `main` innan merge.
 
+- **Deploy → Azure staging är inte en status check (M6).** Jobbet körs bara vid push till
+  `main`, alltså efter merge. På en PR står det som *skipped*, och en required check som
+  aldrig körs skulle blockera varje merge. Blir Deploy rött är `main` ändå korrekt – koden
+  har passerat de fyra kraven – men staging kör fortfarande förra commiten. Kontrollerat
+  igen 2026-11-03 med samma `gh api`-anrop: `checks=Quality, Build, Integration, Image`.
+
 ## CI flödesdiagram
 
 ```mermaid
@@ -60,6 +66,12 @@ flowchart LR
       I2 -->|nej, PR| I3[bygg bara, publicera inte]
       I2 -->|ja| I4[publicera i GHCR med taggen sha-7 tecken]
     end
+    subgraph DE [Deploy → Azure staging: bara push till main, efter Image och Integration]
+      direction TB
+      D1[logga in i Azure med OIDC] --> D2[az containerapp update: api och client till sha-7 tecken]
+      D2 --> D3[vänta tills /api/health svarar med commitens sha]
+      D3 --> D4[röktest: POST /graphql genom nginx]
+    end
   end
 
   PR --> Q1
@@ -72,7 +84,12 @@ flowchart LR
   S -->|nej| F[fixa, pusha igen] --> P
   S -->|ja| M[merge till main]
   M --> MAIN[push till main kör CI igen och publicerar imagerna]
+  I4 --> D1
+  N4 -.->|needs| D1
+  D4 --> STG[staging kör commiten på main]
 ```
+
+På en PR hoppas Deploy över (`if: github.event_name == 'push'`). Deploy är inte med i rulesetet, se ovan.
 ## Vad varje steg fångar
 
 | Steg | Jobb | Kommando | Fångar |
@@ -87,6 +104,7 @@ flowchart LR
 | Bygge | Build | `npm run build` (Vite) | Kod som inte går att bygga för produktion: importer som pekar på filer som inte finns, syntaxfel och komponenter som inte kompilerar. |
 | Artefakt | Build | `upload-artifact` | Fångar inga fel, men sparar det byggda `client/dist` så att man kan ladda ner och titta på exakt det som byggdes. |
 | Image | Image | `docker/build-push-action` (`api/Dockerfile`, `client/Dockerfile`) | Att Dockerfilerna faktiskt bygger: saknade filer i bygget, fel sökvägar i multi-stage-bygget och `npm ci` som bara fungerar på vår dator. På PR bygger jobbet utan att publicera. Vid push till `main` publiceras `…-api` och `…-client` i GHCR med taggen `sha-<7 tecken>`. Jobbet kör först när Quality och Build är gröna och är det enda som har `packages: write`. |
+| Deploy (M6) | Deploy → Azure staging | `azure/login` (OIDC) · `az containerapp update` × 2 · `curl /api/health` i en loop · `curl /graphql` | Att imagen som testades faktiskt startar i molnet med molnets konfiguration: en image som inte går att hämta (privat paket i GHCR), nginx som inte startar (saknad `API_UPSTREAM`), ett API som inte når sina databaser eller inte kan seeda. Väntesteget godkänner först när `/api/health` svarar med just den här commitens sha *och* den sista revisionen är klar – att `az` tog emot beställningen räcker inte. Röktestet visar att nginx skickar `/graphql` vidare och att databasen har data. Körs bara vid push till `main` och har `needs: [image, integration]`, så kod med röda API-tester deployas aldrig. |
 
 Lint, format, `npm test` och bygget körs mot `client/`. Typkontrollen täcker även `api/`, och Integration kör `api/`:s tester. `web/` (React-klienten) togs bort i M6, se nedan.
 
@@ -178,3 +196,44 @@ Skillnaden i Integration är nästan bara containerstarten (20 s mot 25 s) och `
 Integration körs parallellt med Quality och Build, så den gör inte PR:en mycket långsammare –
 men Image väntar nu på den. På `main` var Integration sist klar av de tre, på PR #71 var det Quality.
 
+### Deploy → Azure staging (M6)
+
+Första körningen på `main`, efter merge av #78 ([körning 41639517274](https://github.com/utpost-team/utpost/actions/runs/41639517274),
+commit `12f3155`): **alla fem jobben gröna**, Deploy **91 s**.
+På PR #78 ([körning 41638789333](https://github.com/utpost-team/utpost/actions/runs/41638789333/job/125927256868))
+står Deploy som **skipped** – de fyra andra gröna.
+
+```bash
+== Deploy → Azure staging 91s (main, 12f3155)
+0s      Set up job
+4s      Logga in i Azure med GitHubs identitet (OIDC)
+50s     Byt image på api och client – exakt den här committen
+34s     Vänta tills staging kör den här committen
+0s      Röktest – GraphQL genom nginx-proxyn
+1s      Post Logga in i Azure med GitHubs identitet (OIDC)
+0s      Complete job
+```
+
+Ur loggen:
+
+```
+Försök 1/30: staging kör (inget svar ännu – appen väcks från noll?), klar revision utpost-team--sha-12f3155, väntar 10 s
+✅ https://utpost-team.wonderfulstone-abf1c527.swedencentral.azurecontainerapps.io kör 12f3155beb077d36d4a0adea18af7d5c2c0fe492 (revision utpost-team--sha-12f3155)
+✅ /graphql svarar via nginx, med data ur en seedad databas
+```
+
+Revisionen efter deployen: **`utpost-team--sha-12f3155`** (`az containerapp revision list` visar den som enda aktiva).
+
+| Jobb | PR #78 | `main` (`12f3155`) |
+| --- | --- | --- |
+| Quality | 34 s | 31 s |
+| Build | 18 s | 21 s |
+| Integration | 40 s | 40 s |
+| Image | 30 s | 30 s |
+| **Deploy → Azure staging** | **skipped** ([jobb](https://github.com/utpost-team/utpost/actions/runs/41638789333/job/125927256868)) | **91 s** ([jobb](https://github.com/utpost-team/utpost/actions/runs/41639517274/job/125929752386)) |
+
+Mer än halva tiden är de två `az containerapp update`-anropen (50 s, ett per container, och varje
+anrop väntar tills Azure har skapat revisionen). Väntesteget tog 34 s: det första `curl` fick
+inget svar medan den nya revisionen startade och seedade sina tomma databaser. Från merge till
+att staging kör den nya commiten tar det alltså ungefär tre minuter (Quality/Build/Integration
+~40 s, Image 30 s, Deploy 91 s).
