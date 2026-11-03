@@ -35,4 +35,6 @@
 ## Konsekvenser
 *Vad kostar valet i tid och pengar? Kallstarten när appen skalat till noll. Gratiskvoten som delas av alla i prenumerationen. Hemligheter som nu lever på två ställen (lokalt `.env`, i molnet secrets) – hur roteras de? Vem i teamet har tillgång till portalen?*
 
+**Kallstart (uppmätt 2026-11-03):** 28 s från första anropet till att `/api/health` svarar `"ok":true`, mätt när appen `utpost-team` stod på 0 replicas. Tiden är fyra containrar som startar, API:t som väntar på Postgres och seedar om båda databaserna (`SEED_ON_START=1`). Första besökaren efter en paus väntar alltså ungefär en halv minut.
+
 **Skrivet av:**
