@@ -2,7 +2,7 @@
 import { useQuery } from '@urql/vue'
 import { graphql } from '../gql'
 
-// Startsidan i React-klienten (web/src/pages/Home.jsx) gör fem REST-anrop och använder
+// Startsidan i React-klienten (web/, borttagen i M6) gjorde fem REST-anrop och använde
 // en bråkdel av svaren – skuld 6. Här är samma sida med EN fråga som ber om exakt de fält
 // som mallen nedan visar.
 // M5: frågan står i graphql(`…`) så att codegen ser den, och typen på svaret genereras ur

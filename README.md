@@ -74,11 +74,10 @@ npm run migrate:logs # turloggarna till MongoDB (M5), kör igen efter varje seed
 npm run dev
 ```
 
-`npm run dev` startar databaserna (om de inte redan kör) och sen API:et, React-appen
-och Vue-klienten samtidigt med omladdning vid ändringar. React-appen ligger sen på
-http://localhost:3000, Vue-klienten på http://localhost:3001 och API:et på
-http://localhost:4000. Var för sig:
-`npm run dev:api`, `npm run dev:web` och `npm run dev:client`. Stoppa databaserna
+`npm run dev` startar databaserna (om de inte redan kör) och sen API:et och
+Vue-klienten samtidigt med omladdning vid ändringar. Klienten ligger sen på
+http://localhost:3001 och API:et på http://localhost:4000. Var för sig:
+`npm run dev:api` och `npm run dev:client`. Stoppa databaserna
 med `npm run db:down`.
 
 API:et når databaserna på `localhost:5433` och `localhost:27017`, som är de portar
@@ -102,7 +101,6 @@ Formatera koden lokalt med `npm run format --workspace=client`.
 ## Struktur
 
 - `api/` – Express + Postgres (Drizzle) + MongoDB (driver). REST under `/api` och GraphQL (graphql-yoga) på `/graphql`, med GraphiQL i webbläsaren på `GET /graphql` i utveckling (`api/src/graphql/`)
-- `web/` – React + Vite (den gamla appen, vyerna portas över till `client/`)
 - `client/` – Vue 3 + Vue Router + Pinia + Vite (port 3001). Multi-stage build med Nginx serverar statiska filer och proxar `/api` och `/graphql` till `api:4000`.
 - `shared/` – `@utpost/shared`, API-kontraktet: typerna för det som går mellan `api/` och `client/`. Ren TypeScript, inget bygge. Ändras ett API-svar ändras typen här i samma PR.
 

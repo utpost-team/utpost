@@ -4,6 +4,11 @@ Denna lista är resultatet av att gemensamt läsa igenom `api/` och `web/`
 före M0. Rangordningen är efter risk (vad gör mest skada om det ligger
 kvar ett halvår till), inte efter vad som stör mest att läsa.
 
+> **M6:** `web/` är borttagen. Sökvägarna under `web/` nedan pekar på filer som inte
+> längre finns – de står kvar som historik över hur skulden såg ut. Vyerna lever vidare i
+> `client/` (Profile och TourDetail portades i M6). Skuld 20 (Profile filtrerar alla turer
+> i klienten) följde med till `client/src/views/ProfileView.vue`.
+
 **Allvar:** Hög = kan ge dataläckor, avbrott eller fel data. Medel =
 bromsar varje ändring. Låg = stör men kostar lite.
 

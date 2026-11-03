@@ -12,6 +12,7 @@ export async function renderWithRouter(component: Component, path = '/') {
     history: createMemoryHistory(),
     routes: [
       { path: '/guider/:slug', component: Blank },
+      { path: '/turer/:id', component: Blank },
       { path: '/:pathMatch(.*)*', component: Blank },
     ],
   })

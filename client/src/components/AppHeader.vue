@@ -19,7 +19,9 @@ function handleLogout() {
       <RouterLink to="/turer">Turer</RouterLink>
 
       <template v-if="session.isAuthenticated">
-        <span class="user-greeting">Inloggad som {{ session.user?.display_name }}</span>
+        <RouterLink to="/profil" class="user-greeting"
+          >Inloggad som {{ session.user?.display_name }}</RouterLink
+        >
         <button class="btn-logout" @click="handleLogout">Logga ut</button>
       </template>
       <template v-else>

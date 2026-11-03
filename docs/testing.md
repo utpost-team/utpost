@@ -63,7 +63,6 @@ Vi behövde bestämma vad som ska testas, på vilken nivå, och vad vi medvetet 
 
 - **Vue, Pinia och Vue Router själva:** att `ref` uppdaterar eller att en store finns. Det testar ramverket, inte oss.
 - **Klassnamn, CSS och exakt markup:** testerna läser text och roller, så att en omstylning inte bryter dem.
-- **`web/` (React-appen):** den ersätts vy för vy av `client/`.
 - **REST-routes mot databas:** inte testade. Integrationstesterna (M5) täcker GraphQL-API:et.
 - **`App.vue`, `HomeView`, routerkonfigurationen:** ingen egen logik i dag.
 

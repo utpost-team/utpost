@@ -88,7 +88,7 @@ flowchart LR
 | Artefakt | Build | `upload-artifact` | Fångar inga fel, men sparar det byggda `client/dist` så att man kan ladda ner och titta på exakt det som byggdes. |
 | Image | Image | `docker/build-push-action` (`api/Dockerfile`, `client/Dockerfile`) | Att Dockerfilerna faktiskt bygger: saknade filer i bygget, fel sökvägar i multi-stage-bygget och `npm ci` som bara fungerar på vår dator. På PR bygger jobbet utan att publicera. Vid push till `main` publiceras `…-api` och `…-client` i GHCR med taggen `sha-<7 tecken>`. Jobbet kör först när Quality och Build är gröna och är det enda som har `packages: write`. |
 
-Lint, format, `npm test` och bygget körs mot `client/`. Typkontrollen täcker även `api/`, och Integration kör `api/`:s tester. `web/` kontrolleras inte i CI.
+Lint, format, `npm test` och bygget körs mot `client/`. Typkontrollen täcker även `api/`, och Integration kör `api/`:s tester. `web/` (React-klienten) togs bort i M6, se nedan.
 
 ## CI Tidsmätning
 
