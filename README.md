@@ -231,13 +231,17 @@ $ podman exec utpost_client_1 cat /etc/nginx/conf.d/default.conf | grep proxy_pa
 | compose | `api:4000` | `compose.yml` (och standardvärdet i `client/Dockerfile`) | api är en egen tjänst, nås via sitt namn i compose-nätverket |
 | Azure | `localhost:4000` | `infra/azure/staging.yaml` | api är en sidecar i samma app och delar localhost med client |
 
-Den gamla JWT-hemligheten låg i `api/src/config.js` sedan första commiten. Nu läses `JWT_SECRET` ur miljön, och det gamla värdet finns inte i någon fil på `main`:
+Den gamla JWT-hemligheten låg i `api/src/config.js` sedan första commiten. Nu läses `JWT_SECRET` ur miljön, och det gamla värdet finns inte i någon fil på `main`. Kommandot nedan är skrivet `'utpost-super-''secret'` – skalet sätter ihop det till samma sträng – så att README själv inte innehåller värdet:
 
 ```console
-$ git log --oneline -S 'utpost-super-secret'
+$ git log --oneline -S 'utpost-super-''secret'
+14695f1 docs: keep the old secret string out of README's git log -S example (M6)
+d9a686b docs: README evidence for config, secret and staging (M6 step 7) (#80)
 7b81540 feat: read JWT_SECRET from the environment, drop the committed secret (M6 step 2)
 6d8b04f Initial commit
 ```
+
+Hemligheten kom in i `6d8b04f` och försvann ur koden i `7b81540`. De två översta commitarna är bara den här README-texten: i `d9a686b` stod kommandot med strängen i klartext, och `14695f1` tog bort den igen.
 
 Värdet är roterat, inte bara flyttat: `JWT_SECRET` skapas med `openssl rand -hex 32` i `infra/azure/skapa-staging.sh` och finns bara som secret (`jwt-secret`) i Container Apps, där variabeln pekar på den med `secretRef`. Det står aldrig i en fil som committas, och GitHub har inga secrets alls (Deploy loggar in med OIDC).
 
