@@ -6,6 +6,7 @@
 // finns och skapar det annars. Postgres är källan – dokument vars tur inte längre finns där
 // (t.ex. efter en ny seed) tas bort.
 // Verifierar till sist genom att räkna, och avslutar med felkod om något inte stämmer.
+import { pathToFileURL } from "node:url";
 import { pool } from "./client.js";
 import { mongo, toursCollection } from "./mongo.js";
 
@@ -28,7 +29,9 @@ const toDoc = (tour, logs) => ({
   stats: { points: logs.length },
 });
 
-const run = async () => {
+// M6: exporteras så att boot.js kan köra migreringen vid start i molnet. Kastar om antalen inte
+// stämmer. Körs filen direkt (npm run migrate:logs) stängs anslutningarna efteråt.
+export const migrateLogs = async () => {
   // Två frågor för allt: turerna och alla mätpunkter, grupperade per tur i minnet.
   const tours = (await pool.query("select * from tours order by id")).rows;
   const logs = (
@@ -89,19 +92,18 @@ const run = async () => {
   console.log(
     `Kontroll: dokument ${docs}/${tours.length}, mätpunkter ${points}/${logs.length}, stats.points ${statsPoints}/${logs.length}`,
   );
-  console.log(ok ? "Verifierat" : "FEL: MongoDB stämmer inte med Postgres");
-  return ok;
+  if (!ok) throw new Error("FEL: MongoDB stämmer inte med Postgres");
+  console.log("Verifierat");
 };
 
-run()
-  .then((ok) => {
-    process.exitCode = ok ? 0 : 1;
-  })
-  .catch((err) => {
-    console.error(err.message);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await mongo.close();
-    await pool.end();
-  });
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  migrateLogs()
+    .catch((err) => {
+      console.error(err.message);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await mongo.close();
+      await pool.end();
+    });
+}

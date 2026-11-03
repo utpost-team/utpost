@@ -1,6 +1,6 @@
-# Utpost-klienten (Vue), multi-stage (M4).
-# Steg 1 bygger appen med Node. Steg 2 kopierar bara dist/ till nginx, så Node och node_modules
-# följer inte med in i den slutliga imagen.
+# Utpost-klienten (Vue), multi-stage (M4). Byggs från repots ROT, som api/Dockerfile.
+#
+# Steg 1 – build: Node och alla node_modules, bara för att köra vite build.
 FROM node:22-alpine AS build
 
 WORKDIR /app
@@ -14,9 +14,16 @@ COPY shared/ shared/
 COPY client/ client/
 RUN npm run build --workspace=client
 
+# Steg 2 – det som blir imagen: nginx och de färdiga filerna. Inget Node, inga node_modules,
+# ingen källkod. Allt från steg 1 som inte kopieras hit kastas.
 FROM nginx:1.27-alpine
 
-COPY client/nginx.conf /etc/nginx/conf.d/default.conf
+# M6: adressen till API:et får inte vara hårdkodad. nginx-imagen kör envsubst på allt i /etc/nginx/templates/
+# när containern startar och skriver resultatet till /etc/nginx/conf.d/ – så ${API_UPSTREAM} i mallen
+# blir api:4000 i compose och localhost:4000 i Azure, med samma image.
+COPY client/nginx.conf.template /etc/nginx/templates/default.conf.template
+ENV API_UPSTREAM=api:4000
 COPY --from=build /app/client/dist /usr/share/nginx/html
 
 EXPOSE 80
+# nginx-imagen har redan ett CMD som startar servern.

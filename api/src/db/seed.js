@@ -1,3 +1,4 @@
+import { pathToFileURL } from 'node:url';
 import { pool } from './client.js';
 import { createTables } from './migrate.js';
 
@@ -18,7 +19,8 @@ const bodyHtml = (title, region) => `
 <ul><li>Vindskydd vid halva sträckan</li><li>Ingen service utmed leden</li><li>Mobiltäckning delvis</li></ul>
 <p><em>Senast granskad av redaktionen.</em></p>`.trim();
 
-const run = async () => {
+// M6: exporteras så att boot.js kan seeda vid start i molnet. Körs filen direkt (npm run seed) stängs poolen efteråt.
+export const seed = async () => {
   await createTables();
   await pool.query('truncate photos, tour_logs, tours, guides, users restart identity');
 
@@ -90,10 +92,13 @@ const run = async () => {
   }
 
   console.log(`Seed klar: 12 användare, 40 guider, 200 turer, ${logCount} loggpunkter.`);
-  await pool.end();
 };
 
-run().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  seed()
+    .then(() => pool.end())
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}
