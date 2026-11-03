@@ -9,6 +9,8 @@ export const config = {
     process.env.MONGO_URL ??
     "mongodb://utpost:utpost@localhost:27017/utpost?authSource=admin",
   jwtSecret: "utpost-super-secret-2021",
+  // M6: commiten imagen byggdes från (api/Dockerfile, build-args i CI). Syns i /api/health.
+  gitSha: process.env.GIT_SHA ?? "dev",
   port: Number(process.env.PORT ?? 4000),
   uploadDir: "./uploads",
 };

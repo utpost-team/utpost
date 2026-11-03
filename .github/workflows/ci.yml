@@ -104,6 +104,7 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta-api.outputs.tags }}
           labels: ${{ steps.meta-api.outputs.labels }}
+          build-args: GIT_SHA=${{ github.sha }} # M6: syns i /api/health – deploysteget väntar på den
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
       - id: meta-client

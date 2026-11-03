@@ -15,5 +15,10 @@ COPY api/ api/
 WORKDIR /app/api
 EXPOSE 4000
 
-CMD ["node", "src/index.js"]
- 
+# M6: commiten imagen byggdes från. Pipelinen skickar in den (build-args), lokalt blir det "dev".
+# Syns i /api/health som `sha` – så vet deploysteget att molnet kör rätt version.
+ARG GIT_SHA=dev
+ENV GIT_SHA=$GIT_SHA
+
+# boot.js: väntar på databasen och seedar om SEED_ON_START=1 (staging i molnet), startar sedan index.js.
+CMD ["node", "src/boot.js"]
