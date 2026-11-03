@@ -15,10 +15,14 @@ import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-
  */
 type Documents = {
     "\n  query Home {\n    guides {\n      slug\n      title\n      region\n      difficulty\n      lengthKm\n    }\n    popularGuides(limit: 6) {\n      slug\n      title\n      region\n    }\n    regions\n    tours(limit: 5) {\n      id\n      title\n      distanceM\n    }\n  }\n": typeof types.HomeDocument,
+    "\n  query ProfilTurer {\n    tours {\n      id\n      title\n      user {\n        id\n      }\n    }\n  }\n": typeof types.ProfilTurerDocument,
+    "\n  query Tur($id: ID!) {\n    tour(id: $id) {\n      id\n      title\n      distanceM\n      notes\n      logs {\n        recordedAt\n        elevationM\n        heartRate\n      }\n    }\n  }\n": typeof types.TurDocument,
     "\n  query Turer {\n    tours {\n      id\n      title\n      distanceM\n      startedAt\n      user {\n        displayName\n      }\n      guide {\n        title\n        slug\n      }\n      photos {\n        id\n      }\n    }\n  }\n": typeof types.TurerDocument,
 };
 const documents: Documents = {
     "\n  query Home {\n    guides {\n      slug\n      title\n      region\n      difficulty\n      lengthKm\n    }\n    popularGuides(limit: 6) {\n      slug\n      title\n      region\n    }\n    regions\n    tours(limit: 5) {\n      id\n      title\n      distanceM\n    }\n  }\n": types.HomeDocument,
+    "\n  query ProfilTurer {\n    tours {\n      id\n      title\n      user {\n        id\n      }\n    }\n  }\n": types.ProfilTurerDocument,
+    "\n  query Tur($id: ID!) {\n    tour(id: $id) {\n      id\n      title\n      distanceM\n      notes\n      logs {\n        recordedAt\n        elevationM\n        heartRate\n      }\n    }\n  }\n": types.TurDocument,
     "\n  query Turer {\n    tours {\n      id\n      title\n      distanceM\n      startedAt\n      user {\n        displayName\n      }\n      guide {\n        title\n        slug\n      }\n      photos {\n        id\n      }\n    }\n  }\n": types.TurerDocument,
 };
 
@@ -40,6 +44,14 @@ export function graphql(source: string): unknown;
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  query Home {\n    guides {\n      slug\n      title\n      region\n      difficulty\n      lengthKm\n    }\n    popularGuides(limit: 6) {\n      slug\n      title\n      region\n    }\n    regions\n    tours(limit: 5) {\n      id\n      title\n      distanceM\n    }\n  }\n"): (typeof documents)["\n  query Home {\n    guides {\n      slug\n      title\n      region\n      difficulty\n      lengthKm\n    }\n    popularGuides(limit: 6) {\n      slug\n      title\n      region\n    }\n    regions\n    tours(limit: 5) {\n      id\n      title\n      distanceM\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query ProfilTurer {\n    tours {\n      id\n      title\n      user {\n        id\n      }\n    }\n  }\n"): (typeof documents)["\n  query ProfilTurer {\n    tours {\n      id\n      title\n      user {\n        id\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query Tur($id: ID!) {\n    tour(id: $id) {\n      id\n      title\n      distanceM\n      notes\n      logs {\n        recordedAt\n        elevationM\n        heartRate\n      }\n    }\n  }\n"): (typeof documents)["\n  query Tur($id: ID!) {\n    tour(id: $id) {\n      id\n      title\n      distanceM\n      notes\n      logs {\n        recordedAt\n        elevationM\n        heartRate\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

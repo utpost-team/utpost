@@ -1,3 +1,5 @@
+> M6: `web/` är borttagen. Sökvägarna under `web/` här är historik.
+
 - api/package.json 14 express out of date
 - api/index.js 12 what is the limit 50mb thing
 - api/index.js 27 error handling on node process does not send any feedback
