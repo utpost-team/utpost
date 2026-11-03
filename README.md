@@ -216,6 +216,34 @@ Båda mockar `useQuery` från `@urql/vue`. `npm test`:
       Tests  19 passed (19)
 ```
 
+## I molnet (M6)
+
+Staging kör i **Azure Container Apps** som en app med fyra containrar (`infra/azure/staging.yaml`): client (nginx, enda med ingress), api, Postgres och MongoDB. Appen skapades en gång med `infra/azure/skapa-staging.sh` och skalar till noll mellan passen – första anropet väcker den, och databaserna seedas om vid varje kallstart (`SEED_ON_START=1`). Beslutet och alternativen står i `docs/decisions/hosting.md`.
+
+Staging: https://utpost-team.wonderfulstone-abf1c527.swedencentral.azurecontainerapps.io
+
+`/api/health` i staging, sha lika med `git rev-parse main` (`160792026260a6ff56483fc8b34be1342541ae9e`):
+
+```console
+$ curl -s https://utpost-team.wonderfulstone-abf1c527.swedencentral.azurecontainerapps.io/api/health
+{"ok":true,"version":"1.4.2","sha":"160792026260a6ff56483fc8b34be1342541ae9e","postgres":"ok","mongodb":"ok"}
+```
+
+Boot-raderna ur API-loggen (`az containerapp logs show -n utpost-team -g utpost-andreas-stratmann-rg --container api`) – tom databas, seed vid start:
+
+```text
+boot: väntar på Postgres (1/30): connect ECONNREFUSED 127.0.0.1:5432
+boot: väntar på Postgres (2/30): connect ECONNREFUSED 127.0.0.1:5432
+boot: väntar på Postgres (3/30): connect ECONNREFUSED 127.0.0.1:5432
+boot: tom databas – seedar
+Seed klar: 12 användare, 40 guider, 200 turer, 5997 loggpunkter.
+Postgres: 200 turer, 5997 mätpunkter i tour_logs
+MongoDB:  200 skapade, 0 ersatta, 0 borttagna föräldralösa
+Kontroll: dokument 200/200, mätpunkter 5997/5997, stats.points 5997/5997
+Verifierat
+API lyssnar på http://localhost:4000
+```
+
 ## Deploy
 
 Fråga Marcus. TODO: update

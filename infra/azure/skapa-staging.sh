@@ -31,8 +31,12 @@ az provider register --namespace Microsoft.App --wait
 echo "→ resursgrupp ${RG} i ${LOC}"
 az group create --name "${RG}" --location "${LOC}" --output none
 
-echo "→ miljö ${ENV_NAME} (tar ~2 min; --logs-destination none = ingen Log Analytics, loggar strömmas med az containerapp logs show)"
-az containerapp env create --name "${ENV_NAME}" --resource-group "${RG}" --location "${LOC}" --logs-destination none --output none
+if az containerapp env show --name "${ENV_NAME}" --resource-group "${RG}" --output none 2>/dev/null; then
+  echo "→ miljö ${ENV_NAME} finns redan – återanvänds (skapas inte om)"
+else
+  echo "→ miljö ${ENV_NAME} (tar ~2 min; --logs-destination none = ingen Log Analytics, loggar strömmas med az containerapp logs show)"
+  az containerapp env create --name "${ENV_NAME}" --resource-group "${RG}" --location "${LOC}" --logs-destination none --output none
+fi
 ENV_ID="$(az containerapp env show --name "${ENV_NAME}" --resource-group "${RG}" --query id --output tsv)"
 
 echo "→ appen ${APP} ur infra/azure/staging.yaml (api ${IMAGE_API}, client ${IMAGE_CLIENT})"
