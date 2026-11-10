@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useQuery } from '@urql/vue'
 import { graphql } from '../gql'
 import { elevationGain } from '@/lib/elevation'
+import PhotoUpload from '@/components/PhotoUpload.vue'
 
 // M6: portad från web/src/pages/TourDetail.jsx. React-versionen hämtade /api/tours/:id
 // (mätpunkterna ur Postgres tour_logs); här frågar vi GraphQL, som läser dem ur MongoDB.
@@ -54,5 +55,6 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString('sv-SE')
         {{ log.heartRate ?? '-' }} slag/min
       </li>
     </ol>
+    <PhotoUpload :tour-id="Number(tour.id)" />
   </article>
 </template>
