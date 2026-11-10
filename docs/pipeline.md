@@ -39,6 +39,9 @@ Regler:
   har passerat de fyra kraven – men staging kör fortfarande förra commiten. Kontrollerat
   igen 2026-11-03 med samma `gh api`-anrop: `checks=Quality, Build, Integration, Image`.
 
+- **Deploy → Azure Functions är inte heller en status check (M7)**, av samma skäl: det körs
+  bara vid push till `main` och står som *skipped* på en PR.
+
 ## CI flödesdiagram
 
 ```mermaid
@@ -72,6 +75,12 @@ flowchart LR
       D2 --> D3[vänta tills /api/health svarar med commitens sha]
       D3 --> D4[röktest: POST /graphql genom nginx]
     end
+    subgraph FN [Deploy → Azure Functions: bara push till main, efter Quality]
+      direction TB
+      F1[npm ci --omit=dev i functions/] --> F2[logga in i Azure med OIDC]
+      F2 --> F3[functions-action: lägg upp functions/]
+      F3 --> F4[röktest: POST process-image med nyckeln, fyra varianter]
+    end
   end
 
   PR --> Q1
@@ -87,9 +96,11 @@ flowchart LR
   I4 --> D1
   N4 -.->|needs| D1
   D4 --> STG[staging kör commiten på main]
+  Q4 -.->|needs, bara på main| F1
+  F4 --> FNL[funktionen kör commiten på main]
 ```
 
-På en PR hoppas Deploy över (`if: github.event_name == 'push'`). Deploy är inte med i rulesetet, se ovan.
+På en PR hoppas båda deployjobben över (`if: github.event_name == 'push'`). Inget av dem är med i rulesetet, se ovan.
 ## Vad varje steg fångar
 
 | Steg | Jobb | Kommando | Fångar |
@@ -105,6 +116,7 @@ På en PR hoppas Deploy över (`if: github.event_name == 'push'`). Deploy är in
 | Artefakt | Build | `upload-artifact` | Fångar inga fel, men sparar det byggda `client/dist` så att man kan ladda ner och titta på exakt det som byggdes. |
 | Image | Image | `docker/build-push-action` (`api/Dockerfile`, `client/Dockerfile`) | Att Dockerfilerna faktiskt bygger: saknade filer i bygget, fel sökvägar i multi-stage-bygget och `npm ci` som bara fungerar på vår dator. På PR bygger jobbet utan att publicera. Vid push till `main` publiceras `…-api` och `…-client` i GHCR med taggen `sha-<7 tecken>`. Jobbet kör först när Quality och Build är gröna och är det enda som har `packages: write`. |
 | Deploy (M6) | Deploy → Azure staging | `azure/login` (OIDC) · `az containerapp update` × 2 · `curl /api/health` i en loop · `curl /graphql` | Att imagen som testades faktiskt startar i molnet med molnets konfiguration: en image som inte går att hämta (privat paket i GHCR), nginx som inte startar (saknad `API_UPSTREAM`), ett API som inte når sina databaser eller inte kan seeda. Väntesteget godkänner först när `/api/health` svarar med just den här commitens sha *och* den sista revisionen är klar – att `az` tog emot beställningen räcker inte. Röktestet visar att nginx skickar `/graphql` vidare och att databasen har data. Körs bara vid push till `main` och har `needs: [image, integration]`, så kod med röda API-tester deployas aldrig. |
+| Deploy (M7) | Deploy → Azure Functions | `npm ci --omit=dev` i `functions/` · `azure/login` (OIDC) · `Azure/functions-action` · `curl` mot `process-image` i en loop | Att funktionen startar i Azure med koden på `main`: ett deploypaket utan `@azure/functions` (`functions/` lagd i rotens `workspaces`), en funktion som inte indexeras (värden svarar 404) och en nyckel som inte stämmer (401). Nyckeln hämtas med `az functionapp keys list` i jobbet och maskeras – den finns inte i repot och inte som GitHub-secret. Röktestet godkänner först när svaret har fyra varianter. Samma identitet och miljö (`azure-staging`) som M6, plus variabeln `AZURE_FUNCTION_APP`. Körs bara vid push till `main` och har `needs: [quality]`. |
 
 Lint, format, `npm test` och bygget körs mot `client/`. Typkontrollen täcker även `api/`, och Integration kör `api/`:s tester. `web/` (React-klienten) togs bort i M6, se nedan.
 

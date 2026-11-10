@@ -199,3 +199,73 @@ jobs:
           echo "$SVAR"
           echo "$SVAR" | grep -q '"displayName"' || { echo "::error::GraphQL svarade utan data"; exit 1; }
           echo "✅ /graphql svarar via nginx, med data ur en seedad databas"
+
+  # M7: merge till main → ny kod i bildfunktionen (Azure Functions, Flex Consumption).
+  # Jobbet skapar ingenting – function-appen finns redan (infra/azure/skapa-funktion.sh). Det lägger
+  # upp functions/ med sina produktionsberoenden och röktestar process-image med funktionsnyckeln.
+  deploy-functions:
+    name: Deploy → Azure Functions
+    runs-on: ubuntu-latest
+    needs: [quality] # functions/ har inga egna tester och ingen image – Quality räcker som spärr
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: azure-staging # samma miljö och samma variabler som Deploy → Azure staging, plus AZURE_FUNCTION_APP
+    permissions:
+      id-token: write # samma identitet som M6: OIDC, ingen lösenordshemlighet och ingen publish profile
+      contents: read
+    concurrency:
+      group: deploy-functions
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 } # samma Node som function-appen (skapa-funktion.sh: --runtime-version 22)
+
+      # functions/ är ett eget paket, inte en workspace: beroendena ska ligga i functions/node_modules,
+      # annars saknar deploypaketet @azure/functions och funktionen svarar inte.
+      - name: Produktionsberoenden i functions/
+        working-directory: functions
+        run: npm ci --omit=dev
+
+      - name: Logga in i Azure med GitHubs identitet (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Med OIDC-inloggning känner actionen själv av att appen är Flex Consumption. .funcignore styr
+      # vad som inte följer med (local.settings.json, testerna).
+      - name: Lägg upp functions/ i function-appen
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ vars.AZURE_FUNCTION_APP }}
+          package: functions
+
+      - name: Röktest – process-image med funktionsnyckeln
+        env:
+          RG: ${{ vars.AZURE_RG }}
+          FN_APP: ${{ vars.AZURE_FUNCTION_APP }}
+        run: |
+          # Nyckeln hämtas här i jobbet och maskeras innan något kan skriva ut den – den finns
+          # aldrig i repot eller som GitHub-secret.
+          KEY=$(az functionapp keys list --name "$FN_APP" --resource-group "$RG" --query functionKeys.default --output tsv)
+          echo "::add-mask::$KEY"
+          HOST=$(az functionapp show --name "$FN_APP" --resource-group "$RG" --query "defaultHostName || properties.defaultHostName" --output tsv)
+          URL="https://${HOST}/api/process-image"
+          for i in $(seq 1 12); do
+            # Direkt efter deployen startar värden om – då svarar den 404 tills funktionen är indexerad.
+            SVAR=$(curl -fsS --max-time 30 -X POST "$URL" -H "x-functions-key: $KEY" \
+              -H 'Content-Type: application/json' \
+              -d '{"filename":"rok.jpg","width":4000,"height":3000}' 2>/dev/null || true)
+            ANTAL=$(echo "$SVAR" | jq '.variants | length' 2>/dev/null || echo 0)
+            if [ "$ANTAL" = "4" ]; then
+              echo "$SVAR" | jq -c '{processingMs, coldStart, instance, node}'
+              echo "✅ $URL svarar med fyra varianter"
+              exit 0
+            fi
+            echo "Försök $i/12: inget giltigt svar ännu, väntar 10 s"
+            sleep 10
+          done
+          echo "::error::process-image svarade inte med fyra varianter efter 2 minuter. Kolla loggströmmen för $FN_APP i portalen."
+          exit 1
