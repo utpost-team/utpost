@@ -44,6 +44,7 @@ services:
       SEED_ON_START: "1" # M6: tom databas vid start → seed + migrate:logs (api/src/boot.js). Seedar bara om users är tom
     # Ingen publicerad port: API:et nås bara av nginx i client-tjänsten (/api och /graphql), inte utifrån.
     # Kör du npm run dev:api på din dator lyssnar det på localhost:4000 som vanligt.
+      IMAGE_FUNCTION_URL: http://host.docker.internal:7071/api/process-image
     depends_on:
       postgres:
         condition: service_healthy

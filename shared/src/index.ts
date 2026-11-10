@@ -52,6 +52,33 @@ export interface Photo {
   created_at: string;
 }
 
+/** POST /api/photos (M7) – klienten skickar bara mått och filnamn, inga bytes än */
+export interface PhotoUploadRequest {
+  tourId: number;
+  filename: string;
+  width: number;
+  height: number;
+}
+
+/** En omskalad variant: bredd i pixlar och bildsignaturen (för att hitta dubbletter) */
+export interface PhotoVariant {
+  size: number;
+  signature: string;
+}
+
+/** Svaret på POST /api/photos (M7): raden + det funktionen process-image räknade ut */
+export interface PhotoUploadResponse extends Photo {
+  variants: PhotoVariant[];
+  /** funktionens tid för själva bildarbetet */
+  processingMs: number;
+  /** true = första anropet i en ny funktionsprocess */
+  coldStart: boolean;
+  /** vilken funktionsinstans som svarade */
+  instance: string;
+  /** API:ets tid för hela anropet: databasen + funktionen + nätet */
+  apiMs: number;
+}
+
 /** GET /api/tours – varje tur med användare, guide, bilder och loggar inbakade */
 export interface TourWithRelations extends Tour {
   user?: User; // saknas om användaren raderats – inga foreign keys (Debt 10, #12)
