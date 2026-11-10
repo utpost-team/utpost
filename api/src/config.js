@@ -14,5 +14,10 @@ export const config = {
   // M6: commiten imagen byggdes från (api/Dockerfile, build-args i CI). Syns i /api/health.
   gitSha: process.env.GIT_SHA ?? "dev",
   port: Number(process.env.PORT ?? 4000),
+  // M7: bildfunktionen (functions/). Lokalt func start på 7071, i Azure sätter skapa-funktion.sh
+  // URL:en och nyckeln (nyckeln som secret). Lokalt behövs ingen nyckel.
+  imageFunctionUrl:
+    process.env.IMAGE_FUNCTION_URL ?? "http://localhost:7071/api/process-image",
+  imageFunctionKey: process.env.IMAGE_FUNCTION_KEY,
   uploadDir: "./uploads",
 };
