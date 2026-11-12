@@ -6,6 +6,7 @@ import ToursView from '@/views/ToursView.vue'
 import LoginView from '@/views/LoginView.vue'
 import TourDetailView from '@/views/TourDetailView.vue'
 import ProfileView from '@/views/ProfileView.vue'
+import { getToken } from '@/lib/token'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -39,6 +40,7 @@ const router = createRouter({
       path: '/profil',
       name: 'profile',
       component: ProfileView,
+      meta: { requiresAuth: true },
     },
     {
       path: '/logga-in',
@@ -46,6 +48,15 @@ const router = createRouter({
       component: LoginView,
     },
   ],
+})
+
+router.beforeEach((to) => {
+  if (to.matched.some((record) => record.meta.requiresAuth) && !getToken()) {
+    return { 
+      name: 'login',
+      query: { redirect: to.fullPath },  // optional: pass the intended route for redirect after login
+     } 
+  }
 })
 
 export default router

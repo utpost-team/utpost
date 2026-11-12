@@ -2,16 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ApiError, LoginResponse, User } from '@utpost/shared'
 import { post } from '@/api'
-
-const readStoredUser = (): User | null => {
-  const raw = localStorage.getItem('user')
-  // Vi skrev själva det här värdet vid login, så vi litar på formen.
-  return raw ? (JSON.parse(raw) as User) : null
-}
+import { setToken } from '@/lib/token'
 
 export const useSessionStore = defineStore('session', () => {
-  const token = ref<string | null>(localStorage.getItem('token'))
-  const user = ref<User | null>(readStoredUser())
+  const token = ref<string | null>(null)
+  const user = ref<User | null>(null)
 
   const isAuthenticated = computed(() => Boolean(token.value && user.value))
 
@@ -24,9 +19,7 @@ export const useSessionStore = defineStore('session', () => {
 
     token.value = data.token
     user.value = data.user
-
-    localStorage.setItem('token', data.token)
-    localStorage.setItem('user', JSON.stringify(data.user))
+    setToken(data.token)
 
     return data.user
   }
@@ -34,15 +27,8 @@ export const useSessionStore = defineStore('session', () => {
   function logout() {
     token.value = null
     user.value = null
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    setToken(null)
   }
 
-  return {
-    token,
-    user,
-    isAuthenticated,
-    login,
-    logout,
-  }
+  return { token, user, isAuthenticated, login, logout }
 })

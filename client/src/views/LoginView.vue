@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 
 const email = ref('')
 const password = ref('')
 const error = ref('')
 
+const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
 
@@ -14,7 +15,14 @@ async function submit() {
   error.value = ''
   try {
     await session.login(email.value, password.value)
-    router.push('/')
+    const destination = route.query.redirect
+    const redirectTo =
+      typeof destination === 'string' && 
+      destination.startsWith('/') &&
+      !destination.startsWith('//')
+        ? destination
+        : '/'
+    router.push(redirectTo)
   } catch (err) {
     // Storen kastar Error med API:ets meddelande.
     error.value = err instanceof Error ? err.message : 'Kunde inte logga in'
