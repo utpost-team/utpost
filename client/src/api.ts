@@ -1,6 +1,6 @@
 // Relativ adress: browsern frågar samma server som skickade sidan. I containern är det nginx
 // (client/nginx.conf), i utveckling Vites dev-server (proxy i vite.config.js). Båda skickar vidare till API:et.
-import { getToken } from '@/lib/token'
+import { getToken } from './lib/token'
 export const API_URL = '/api'
 
 function authHeaders(): Record<string, string> {

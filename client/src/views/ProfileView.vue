@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuery } from '@urql/vue'
 import { graphql } from '../gql'
-import { useSessionStore } from '@/stores/session'
+import { useAuthStore } from '@/stores/auth'
 
 // M6: portad från web/src/pages/Profile.jsx. Som där hämtas alla turer och användarens egna
 // filtreras fram i klienten (skuld 20) – ett fält som Query.myTours vore rätt fix, men det är
@@ -20,30 +20,30 @@ const ProfilTurerDocument = graphql(/* GraphQL */ `
   }
 `)
 
-const session = useSessionStore()
+const auth = useAuthStore()
 const router = useRouter()
 
 const { data } = useQuery({
   query: ProfilTurerDocument,
-  pause: computed(() => !session.user),
+  pause: computed(() => !auth.user),
 })
 
 // User.id är number i @utpost/shared, ID är string i GraphQL
 const myTours = computed(() =>
-  (data.value?.tours ?? []).filter((t) => t.user.id === String(session.user?.id)),
+  (data.value?.tours ?? []).filter((t) => t.user.id === String(auth.user?.id)),
 )
 
 function handleLogout() {
-  session.logout()
+  auth.logout()
   router.push('/')
 }
 </script>
 
 <template>
-  <p v-if="!session.user">Du är inte inloggad.</p>
+  <p v-if="!auth.user">Du är inte inloggad.</p>
   <div v-else>
-    <h1>{{ session.user.display_name }}</h1>
-    <p class="muted">{{ session.user.email }} · {{ session.user.role }}</p>
+    <h1>{{ auth.user.display_name }}</h1>
+    <p class="muted">{{ auth.user.email }} · {{ auth.user.role }}</p>
     <h2>Mina turer ({{ myTours.length }})</h2>
     <ul class="list">
       <li v-for="t in myTours" :key="t.id">
@@ -53,3 +53,5 @@ function handleLogout() {
     <button @click="handleLogout">Logga ut</button>
   </div>
 </template>
+
+
