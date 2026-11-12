@@ -6,6 +6,7 @@ import ToursView from '@/views/ToursView.vue'
 import LoginView from '@/views/LoginView.vue'
 import TourDetailView from '@/views/TourDetailView.vue'
 import ProfileView from '@/views/ProfileView.vue'
+import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -39,6 +40,7 @@ const router = createRouter({
       path: '/profil',
       name: 'profile',
       component: ProfileView,
+      meta: { requiresAuth: true },
     },
     {
       path: '/logga-in',
@@ -46,6 +48,17 @@ const router = createRouter({
       component: LoginView,
     },
   ],
+})
+
+router.beforeEach((to) => {
+  const auth = useAuthStore()
+
+  if (to.meta.requiresAuth && !auth.isLoggedIn) {
+    return {
+      name: 'login',
+      query: { till: to.fullPath },
+    }
+  }
 })
 
 export default router

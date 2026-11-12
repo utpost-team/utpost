@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { RouterLink, useRouter } from 'vue-router'
-import { useSessionStore } from '@/stores/session'
+import { useAuthStore } from '@/stores/auth'
 
-const session = useSessionStore()
+const auth = useAuthStore()
 const router = useRouter()
 
 function handleLogout() {
-  session.logout()
+  auth.logout()
   router.push('/logga-in')
 }
 </script>

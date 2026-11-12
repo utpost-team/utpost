@@ -1,12 +1,16 @@
+
 import { it, expect, vi, beforeEach } from 'vitest'
 import { ref } from 'vue'
 import { screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { useQuery } from '@urql/vue'
+import { createPinia } from 'pinia'
 import type { User } from '@utpost/shared'
 import ProfileView from './ProfileView.vue'
 import { renderWithRouter } from '@/test-utils'
 import type { ProfilTurerQuery } from '@/gql/graphql'
+import { setToken } from '@/lib/token'
+import { useAuthStore } from '@/stores/auth'
 
 vi.mock('@urql/vue', () => ({ useQuery: vi.fn() }))
 const mockedUseQuery = vi.mocked(useQuery)
@@ -24,14 +28,15 @@ const anna: User = {
   created_at: '2026-01-01T00:00:00Z',
 }
 
-// Sessionen läses ur localStorage när storen skapas, precis som efter en riktig inloggning.
-const loggaIn = (user: User) => {
-  localStorage.setItem('token', 't')
-  localStorage.setItem('user', JSON.stringify(user))
+// Inloggningen använder Pinia och en token som bara lagras i minnet.
+const loggaIn = (pinia: ReturnType<typeof createPinia>, user: User) => {
+  setToken('t')
+  useAuthStore(pinia).user = user
 }
 
 beforeEach(() => {
-  localStorage.clear()
+  setToken(null)
+
   mockedUseQuery.mockReturnValue(
     svar({
       tours: [
@@ -44,8 +49,9 @@ beforeEach(() => {
 
 // C16 – fångar att andras turer visas, eller att number/string-jämförelsen av id missar alla.
 it('shows the user and only their own tours', async () => {
-  loggaIn(anna)
-  await renderWithRouter(ProfileView, '/profil')
+  const pinia = createPinia()
+  loggaIn(pinia, anna)
+  await renderWithRouter(ProfileView, '/profil', pinia)
 
   expect(await screen.findByRole('heading', { name: 'Anna' })).toBeInTheDocument()
   expect(screen.getByText('anna@example.com · member')).toBeInTheDocument()
@@ -64,11 +70,12 @@ it('says so when nobody is logged in', async () => {
 
 // C18 – utloggningen tömmer sessionen och lämnar sidan.
 it('logs out and leaves the page', async () => {
-  loggaIn(anna)
-  const { router } = await renderWithRouter(ProfileView, '/profil')
+  const pinia = createPinia()
+  loggaIn(pinia, anna)
+  const { router } = await renderWithRouter(ProfileView, '/profil', pinia)
 
   await userEvent.click(await screen.findByRole('button', { name: 'Logga ut' }))
 
-  expect(localStorage.getItem('token')).toBeNull()
-  await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/'))
+  expect(router.currentRoute.value.path).toBe('/')
+  expect(useAuthStore(pinia).isLoggedIn).toBe(false)
 })
