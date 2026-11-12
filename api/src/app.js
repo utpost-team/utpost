@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { ZodError } from 'zod';
 import { config } from './config.js';
 import { pool } from './db/client.js';
 import { mongo } from './db/mongo.js';
@@ -14,7 +15,12 @@ import { yoga } from './graphql/server.js';
 export const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+
+// GraphQL (M4): en endpoint bredvid REST-routerna. Ligger före express.json() – yoga läser sin egen body.
+app.use(yoga.graphqlEndpoint, yoga);
+
+// Express JSON limit sätts till 1mb för att förhindra för stora requests.
+app.use(express.json({ limit: '1mb' }));
 
 // Svarar med om databaserna nås. Compose och molnet frågar hit för att veta om API:et lever.
 // M6: `sha` är commiten imagen byggdes från – pipelinen väntar på att molnet svarar med rätt sha.
@@ -47,12 +53,16 @@ app.use('/api/guides', guidesRouter);
 app.use('/api/tours', toursRouter);
 app.use('/api/photos', photosRouter);
 
-// Med sökväg, annars svarar yoga på alla adresser och REST-routerna får 404.
-app.use(yoga.graphqlEndpoint, yoga);
-
-// Servern dog i produktion en fredag när någon skrev in ett ogiltigt id.
-// Det här håller den vid liv. Anropet får inget svar, men resten funkar. /marcus 2022-09-02
-process.on('unhandledRejection', (err) => {
-  console.error('Ohanterat fel:', err.message);
+// Felhanteraren sist i app.js
+app.use((err, req, res, next) => {
+  if (err instanceof ZodError) {
+    return res.status(400).json({
+      error: 'ogiltig indata',
+      issues: err.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+    });
+  }
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'ogiltig JSON' });
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'för stor request' });
+  console.error(`${req.method} ${req.originalUrl}: ${err.message}`);
+  res.status(500).json({ error: 'internt fel' });
 });
-
