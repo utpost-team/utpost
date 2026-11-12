@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { pool } from './client.js';
 import { createTables } from './migrate.js';
+import { hashPassword } from '../lib/password.js';
 
 const REGIONS = ['Jämtland', 'Dalarna', 'Lappland', 'Bohuslän', 'Småland', 'Södermanland', 'Härjedalen', 'Skåne'];
 const DIFFICULTY = ['lätt', 'medel', 'svår'];
@@ -20,17 +21,35 @@ const bodyHtml = (title, region) => `
 <p><em>Senast granskad av redaktionen.</em></p>`.trim();
 
 // M6: exporteras så att boot.js kan seeda vid start i molnet. Körs filen direkt (npm run seed) stängs poolen efteråt.
+// M8: lösenord hashas med scrypt före loopen – hemligt123 för alla seedade användare.
 export const seed = async () => {
   await createTables();
   await pool.query('truncate photos, tour_logs, tours, guides, users restart identity');
 
+  const passwordHash = await hashPassword('hemligt123'); // en gång, före loopen – scrypt är långsam med flit
+
   const userIds = [];
-  for (let i = 0; i < 12; i++) {
+
+  // Två fasta konton för testning och laboration:
+  const redaktorRes = await pool.query(
+    `insert into users (email, password_hash, display_name, role) values ($1,$2,$3,$4) returning id`,
+    ['redaktor@utpost.se', passwordHash, 'Redaktör', 'editor'],
+  );
+  userIds.push(redaktorRes.rows[0].id);
+
+  const medlemRes = await pool.query(
+    `insert into users (email, password_hash, display_name, role) values ($1,$2,$3,$4) returning id`,
+    ['medlem@utpost.se', passwordHash, 'Medlem', 'member'],
+  );
+  userIds.push(medlemRes.rows[0].id);
+
+  // Resterande 10 användare (totalt 12 användare):
+  for (let i = 2; i < 12; i++) {
     const name = `${pick(FIRST)} ${pick(LAST)}`;
     const email = `${name.toLowerCase().replace(' ', '.')}${i}@example.com`;
     const res = await pool.query(
       `insert into users (email, password_hash, display_name, role) values ($1,$2,$3,$4) returning id`,
-      [email, 'plaintext:hemligt123', name, i === 0 ? 'editor' : 'member'],
+      [email, passwordHash, name, 'member'],
     );
     userIds.push(res.rows[0].id);
   }
@@ -43,9 +62,15 @@ export const seed = async () => {
       `insert into guides (slug, title, region, difficulty, length_km, body_html, hero_image, published, author_id)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id`,
       [
-        title.toLowerCase().replace(/[åä]/g, 'a').replace(/ö/g, 'o').replace(/\s+/g, '-'), title, region, pick(DIFFICULTY),
+        title.toLowerCase().replace(/[åä]/g, 'a').replace(/ö/g, 'o').replace(/\s+/g, '-'),
+        title,
+        region,
+        pick(DIFFICULTY),
         Math.round((3 + Math.random() * 25) * 10) / 10,
-        bodyHtml(title, region), `hero-${i + 1}.jpg`, i % 9 !== 0, userIds[0],
+        bodyHtml(title, region),
+        `hero-${i + 1}.jpg`,
+        i % 9 !== 0,
+        userIds[0],
       ],
     );
     guideIds.push(res.rows[0].id);
@@ -58,8 +83,11 @@ export const seed = async () => {
       `insert into tours (user_id, guide_id, title, started_at, distance_m, notes)
        values ($1,$2,$3,$4,$5,$6) returning id`,
       [
-        pick(userIds), Math.random() > 0.25 ? pick(guideIds) : null,
-        `Tur ${i + 1}`, started, 2000 + rnd(30000),
+        pick(userIds),
+        Math.random() > 0.25 ? pick(guideIds) : null,
+        `Tur ${i + 1}`,
+        started,
+        2000 + rnd(30000),
         Math.random() > 0.6 ? 'Blött väder, mycket folk vid rastplatsen.' : null,
       ],
     );
@@ -72,9 +100,12 @@ export const seed = async () => {
       const base = params.length;
       values.push(`($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6})`);
       params.push(
-        tourId, new Date(started.getTime() + p * 300000),
-        58 + Math.random() * 10, 12 + Math.random() * 8,
-        100 + rnd(900), 90 + rnd(70),
+        tourId,
+        new Date(started.getTime() + p * 300000),
+        58 + Math.random() * 10,
+        12 + Math.random() * 8,
+        100 + rnd(900),
+        90 + rnd(70),
       );
     }
     await pool.query(
