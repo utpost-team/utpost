@@ -249,3 +249,43 @@ anrop väntar tills Azure har skapat revisionen). Väntesteget tog 34 s: det fö
 inget svar medan den nya revisionen startade och seedade sina tomma databaser. Från merge till
 att staging kör den nya commiten tar det alltså ungefär tre minuter (Quality/Build/Integration
 ~40 s, Image 30 s, Deploy 91 s).
+
+### Deploy → Azure Functions (M7)
+
+Första körningen på `main`, efter merge av #84 ([körning 42811263765](https://github.com/utpost-team/utpost/actions/runs/42811263765/job/129813633982),
+commit `e06e874`): **alla sex jobben gröna**, Deploy → Azure Functions **42 s**, alltså ungefär 40 s.
+På PR #84 ([körning 42810933699](https://github.com/utpost-team/utpost/actions/runs/42810933699/job/129812476994))
+står jobbet som **skipped** – liksom Deploy → Azure staging.
+
+```bash
+== Deploy → Azure Functions 42s (main, e06e874)
+12s     Set up job
+0s      Run actions/checkout@v4
+1s      Run actions/setup-node@v4
+1s      Produktionsberoenden i functions/
+3s      Logga in i Azure med GitHubs identitet (OIDC)
+14s     Lägg upp functions/ i function-appen
+6s      Röktest – process-image med funktionsnyckeln
+1s      Post Logga in i Azure med GitHubs identitet (OIDC)
+0s      Complete job
+```
+
+Ur loggen (röktestet lyckades på första försöket, och det var en kallstart):
+
+```
+{"processingMs":73,"coldStart":true,"instance":"3--7c5ccf88-7025-4f97-a69d-2111f1eccb75","node":"v22.23.4"}
+✅ https://utpost-team-fn.azurewebsites.net/api/process-image svarar med fyra varianter
+```
+
+| Jobb | PR #84 | `main` (`e06e874`) |
+| --- | --- | --- |
+| Quality | 78 s | 82 s |
+| Build | 55 s | 65 s |
+| Integration | 77 s | 86 s |
+| Image | 35 s | 28 s |
+| Deploy → Azure staging | skipped | 111 s |
+| **Deploy → Azure Functions** | **skipped** ([jobb](https://github.com/utpost-team/utpost/actions/runs/42810933699/job/129812476994)) | **42 s** ([jobb](https://github.com/utpost-team/utpost/actions/runs/42811263765/job/129813633982)) |
+
+Jobbet behöver bara Quality, så det startar innan Image och Integration är klara och är färdigt
+långt före Deploy → Azure staging. Uppladdningen av paketet (14 s) är den största delen; själva
+`npm ci --omit=dev` tar en sekund, eftersom funktionen bara har ett beroende.
