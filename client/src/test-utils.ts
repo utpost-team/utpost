@@ -1,13 +1,17 @@
 import type { Component } from 'vue'
 import { render } from '@testing-library/vue'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import { createPinia } from 'pinia'
+import { createPinia, type Pinia } from 'pinia'
 import type { Guide } from '@utpost/shared'
 
 // Riktig router i minnet: vyerna använder RouterLink, useRoute och useRouter.
 const Blank = { render: () => null }
 
-export async function renderWithRouter(component: Component, path = '/') {
+export async function renderWithRouter(
+  component: Component,
+  path = '/',
+  pinia: Pinia = createPinia(),
+) {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -18,7 +22,9 @@ export async function renderWithRouter(component: Component, path = '/') {
   })
   router.push(path)
   await router.isReady()
-  const utils = render(component, { global: { plugins: [router, createPinia()] } })
+  const utils = render(component, {
+    global: { plugins: [router, pinia] },
+  })
   return { ...utils, router }
 }
 
