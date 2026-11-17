@@ -53,5 +53,3 @@ function handleLogout() {
     <button @click="handleLogout">Logga ut</button>
   </div>
 </template>
-
-

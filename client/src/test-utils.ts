@@ -4,7 +4,6 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import { createPinia, type Pinia } from 'pinia'
 import type { Guide } from '@utpost/shared'
 
-
 // Riktig router i minnet: vyerna använder RouterLink, useRoute och useRouter.
 const Blank = { render: () => null }
 
@@ -28,7 +27,6 @@ export async function renderWithRouter(
   })
   return { ...utils, router }
 }
-
 
 // Typade fabriker: ändras kontraktet i @utpost/shared bryts testdatan i typkontrollen.
 export const makeGuide = (overrides: Partial<Guide> = {}): Guide => ({
