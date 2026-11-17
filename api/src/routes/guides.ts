@@ -3,7 +3,8 @@ import type { Guide, ApiError } from '@utpost/shared';
 import { pool } from '../db/client.js';
 import { wrap } from '../lib/wrap.js';
 import { validate } from '../lib/validate.js';
-import { searchSchema } from '../lib/schemas.js';
+import { searchSchema, guideUpdateSchema, idParam } from '../lib/schemas.js';
+import { requireUser, requireRole } from '../lib/auth.js';
 
 export const guidesRouter = Router();
 
@@ -55,15 +56,23 @@ guidesRouter.get(
   }),
 );
 
+// M8 steg 4: tog tidigare emot vad som helst från vem som helst ("auth kommer sen").
+// Nu: token (401), rollen editor (403), validerad body (400 med issues), id som tal, 404 om guiden saknas.
 guidesRouter.put(
   '/:id',
-  wrap(async (req: Request, res: Response<Guide>) => {
+  requireUser,
+  requireRole('editor'),
+  validate(guideUpdateSchema),
+  wrap(async (req: Request, res: Response<Guide | ApiError>) => {
+    const id = idParam.safeParse(req.params.id);
+    if (!id.success) return res.status(400).json({ error: 'ogiltigt id' });
     const { title, region, difficulty, lengthKm, bodyHtml, published } = req.body;
     const result = await pool.query<Guide>(
       `update guides set title=$1, region=$2, difficulty=$3, length_km=$4, body_html=$5,
        published=$6, updated_at=now() where id=$7 returning *`,
-      [title, region, difficulty, lengthKm, bodyHtml, published, req.params.id],
+      [title, region, difficulty, lengthKm, bodyHtml, published, id.data],
     );
+    if (!result.rows[0]) return res.status(404).json({ error: 'hittades inte' });
     res.json(result.rows[0]);
   }),
 );

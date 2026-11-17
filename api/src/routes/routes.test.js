@@ -114,6 +114,73 @@ describe('A01 Broken Access Control – vems tur är det?', () => {
   });
 });
 
+// M8 steg 4 (fredagens labb): PUT /api/guides/:id tog emot vad som helst från vem som helst.
+describe('A01 – redaktionens routes', () => {
+  const body = {
+    title: 'Ny titel',
+    region: 'Dalarna',
+    difficulty: 'medel',
+    lengthKm: 12,
+    bodyHtml: '<p>x</p>',
+    published: true,
+  };
+  const userWithRole = async (role) =>
+    (await pool.query('select id, email, role from users where role = $1 limit 1', [role])).rows[0];
+
+  it('PUT /api/guides/:id utan token ger 401 och guiden är orörd', async () => {
+    const before = (await pool.query('select title from guides where id = 1')).rows[0];
+    const res = await api('/api/guides/1', { method: 'PUT', body });
+    expect(res.status).toBe(401);
+    const after = (await pool.query('select title from guides where id = 1')).rows[0];
+    expect(after.title).toBe(before.title);
+  });
+
+  it('en medlem får inte ändra guider (403) – bara rollen editor', async () => {
+    const res = await api('/api/guides/1', {
+      method: 'PUT',
+      body,
+      token: sign(await userWithRole('member')),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('en redaktör kan ändra, men en ogiltig body ger 400 med issues', async () => {
+    const token = sign(await userWithRole('editor'));
+    const before = (await pool.query('select * from guides where id = 1')).rows[0];
+    const res = await api('/api/guides/1', {
+      method: 'PUT',
+      token,
+      body: {
+        title: before.title,
+        region: before.region,
+        difficulty: before.difficulty,
+        lengthKm: Number(before.length_km),
+        bodyHtml: before.body_html,
+        published: before.published,
+      },
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).title).toBe(before.title);
+
+    const fel = await api('/api/guides/1', {
+      method: 'PUT',
+      token,
+      body: { ...body, difficulty: 'omöjlig' },
+    });
+    expect(fel.status).toBe(400);
+    expect((await fel.json()).issues.map((i) => i.path)).toContain('difficulty');
+  });
+});
+
+describe('A02 Security Misconfiguration – CORS', () => {
+  it('API:et skickar ingen Access-Control-Allow-Origin – ingen annan sajt får läsa svaren', async () => {
+    const res = await fetch(`${base}/api/health`, {
+      headers: { origin: 'https://annan-sajt.example' },
+    });
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+  });
+});
+
 describe('A05 Injection – sökningen', () => {
   it("ett citattecken i sökordet ger 200 och en tom lista, inte 500", async () => {
     const res = await api(`/api/guides/search?q=${encodeURIComponent("'")}`);

@@ -41,3 +41,14 @@ export const searchSchema = z.object({
 
 // Id i adressen: /api/tours/:id ska vara ett positivt heltal, inte "1 or 1=1".
 export const idParam = z.coerce.number().int().positive();
+
+// PUT /api/guides/:id – redaktionens uppdatering (kräver rollen editor). Samma gränser som
+// createTourSchema där de överlappar: titel högst 120 tecken. bodyHtml max 50 000 tecken.
+export const guideUpdateSchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  region: z.string().trim().min(1).max(60),
+  difficulty: z.enum(['lätt', 'medel', 'svår']),
+  lengthKm: z.coerce.number().min(0).max(1000),
+  bodyHtml: z.string().max(50_000),
+  published: z.boolean(),
+});
