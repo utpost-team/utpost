@@ -32,6 +32,7 @@ services:
       timeout: 3s
       retries: 10
   api:
+    image: utpost-api # M8: fast namn, så att jobbet Säkerhet kan skanna imagen (annars <mapp>-api)
     build:
       context: . # repots rot, inte api/ – Dockerfilen kopierar shared/ också
       dockerfile: api/Dockerfile
@@ -51,6 +52,7 @@ services:
       mongo:
         condition: service_healthy
   client:
+    image: utpost-client
     build:
       context: .
       dockerfile: client/Dockerfile
