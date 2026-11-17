@@ -18,9 +18,17 @@ Regler:
   - Minst **1** godkännande krävs, så ingen kan merga sin egen PR ensam.
   - Tillåtna merge-metoder: merge och squash.
 - **Require status checks to pass**
-  - Kräver: **`Quality`**, **`Build`**, **`Integration`** och **`Image`** från GitHub Actions.
-    Namnen är jobbens `name:` i `.github/workflows/ci.yml`. `Integration` lades till i M5.
-  - Kontrollerat 2026-10-27 med `gh api repos/utpost-team/utpost/rulesets/23657261`:
+  - Kräver: **`Quality`**, **`Build`**, **`Integration`**, **`Image`** och **`Säkerhet`** från GitHub Actions.
+    Namnen är jobbens `name:` i `.github/workflows/ci.yml`. `Integration` lades till i M5, `Säkerhet` i M8.
+  - Kontrollerat 2026-11-17 med samma anrop, efter att `Säkerhet` lagts till:
+
+    ```
+    enforcement=active bypass=0
+    strict=true checks=Quality, Build, Integration, Image, Säkerhet
+    approvals=1
+    ```
+
+  - Tidigare kontrollerat 2026-10-27 med `gh api repos/utpost-team/utpost/rulesets/23657261`:
 
     ```
     enforcement=active bypass=0
@@ -63,6 +71,11 @@ flowchart LR
       direction TB
       N1[npm ci] --> N2[npm run seed] --> N3[npm run migrate:logs] --> N4[npm run test:api]
     end
+    subgraph SE [Säkerhet M8: parallellt med Quality, billigast först]
+      direction TB
+      S1[npm ci] --> S2[npm audit --omit=dev --audit-level=high] --> S3[Trivy fs: vuln, secret, misconfig]
+      S3 --> S4[docker compose up --build --wait] --> S5[Trivy image: utpost-api] --> S6[ZAP baseline mot localhost:3001]
+    end
     subgraph IM [Image: körs efter Quality, Build och Integration]
       direction TB
       I1[bygg api- och client-image] --> I2{push till main?}
@@ -86,10 +99,12 @@ flowchart LR
   PR --> Q1
   PR --> B1
   PR --> N1
+  PR --> S1
   Q4 --> I1
   B3 --> I1
   N4 --> I1
-  I3 --> S{Ruleset på main:<br/>Quality + Build + Integration + Image gröna?<br/>branch uppdaterad mot main?<br/>1 godkännande?}
+  S6 --> S
+  I3 --> S{Ruleset på main:<br/>Quality + Build + Integration + Image + Säkerhet gröna?<br/>branch uppdaterad mot main?<br/>1 godkännande?}
   S -->|nej| F[fixa, pusha igen] --> P
   S -->|ja| M[merge till main]
   M --> MAIN[push till main kör CI igen och publicerar imagerna]
@@ -115,6 +130,7 @@ På en PR hoppas båda deployjobben över (`if: github.event_name == 'push'`). I
 | Bygge | Build | `npm run build` (Vite) | Kod som inte går att bygga för produktion: importer som pekar på filer som inte finns, syntaxfel och komponenter som inte kompilerar. |
 | Artefakt | Build | `upload-artifact` | Fångar inga fel, men sparar det byggda `client/dist` så att man kan ladda ner och titta på exakt det som byggdes. |
 | Image | Image | `docker/build-push-action` (`api/Dockerfile`, `client/Dockerfile`) | Att Dockerfilerna faktiskt bygger: saknade filer i bygget, fel sökvägar i multi-stage-bygget och `npm ci` som bara fungerar på vår dator. På PR bygger jobbet utan att publicera. Vid push till `main` publiceras `…-api` och `…-client` i GHCR med taggen `sha-<7 tecken>`. Jobbet kör först när Quality och Build är gröna och är det enda som har `packages: write`. |
+| Säkerhet (M8) | Säkerhet | `npm audit --omit=dev --audit-level=high` · Trivy `fs` (vuln, secret, misconfig, `.trivyignore`) · `docker compose up -d --build --wait` · Trivy `image` på `utpost-api` · ZAP baseline mot `localhost:3001` (`.zap/rules.tsv`) | Ett produktionsberoende med känd high/critical-sårbarhet (SCA), en hemlighet som råkat committas, en Dockerfile som kör som root, en sårbarhet i api-imagen (Alpine, Node, npm-paket) och, i den körande appen (DAST), en saknad säkerhetsheader (CSP, nosniff, clickjacking) eller en läckt serverversion. Billigast först: `npm audit` stoppar på en sekund, innan något byggs. Undantag står med motivering i `.trivyignore` (DS-0002, nginx startar som root) och `.zap/rules.tsv`. Krävs av rulesetet. Inget annat jobb har `needs` på det. |
 | Deploy (M6) | Deploy → Azure staging | `azure/login` (OIDC) · `az containerapp update` × 2 · `curl /api/health` i en loop · `curl /graphql` | Att imagen som testades faktiskt startar i molnet med molnets konfiguration: en image som inte går att hämta (privat paket i GHCR), nginx som inte startar (saknad `API_UPSTREAM`), ett API som inte når sina databaser eller inte kan seeda. Väntesteget godkänner först när `/api/health` svarar med just den här commitens sha *och* den sista revisionen är klar – att `az` tog emot beställningen räcker inte. Röktestet visar att nginx skickar `/graphql` vidare och att databasen har data. Körs bara vid push till `main` och har `needs: [image, integration]`, så kod med röda API-tester deployas aldrig. |
 | Deploy (M7) | Deploy → Azure Functions | `npm ci --omit=dev` i `functions/` · `azure/login` (OIDC) · `Azure/functions-action` · `curl` mot `process-image` i en loop | Att funktionen startar i Azure med koden på `main`: ett deploypaket utan `@azure/functions` (`functions/` lagd i rotens `workspaces`), en funktion som inte indexeras (värden svarar 404) och en nyckel som inte stämmer (401). Nyckeln hämtas med `az functionapp keys list` i jobbet och maskeras – den finns inte i repot och inte som GitHub-secret. Röktestet godkänner först när svaret har fyra varianter. Samma identitet och miljö (`azure-staging`) som M6, plus variabeln `AZURE_FUNCTION_APP`. Körs bara vid push till `main` och har `needs: [quality]`. |
 
@@ -289,3 +305,45 @@ Ur loggen (röktestet lyckades på första försöket, och det var en kallstart)
 Jobbet behöver bara Quality, så det startar innan Image och Integration är klara och är färdigt
 långt före Deploy → Azure staging. Uppladdningen av paketet (14 s) är den största delen; själva
 `npm ci --omit=dev` tar en sekund, eftersom funktionen bara har ett beroende.
+
+### Säkerhet (M8)
+
+Första körningen på `main`, efter merge av #89 ([körning 44081921128](https://github.com/utpost-team/utpost/actions/runs/44081921128/job/134034392512),
+commit `320e826`): **alla sju jobben gröna**, Säkerhet **145 s**, alltså ungefär 2,5 minuter.
+Bygget av imagerna (35 s) och ZAP (62 s, spindeln kör en minut) är två tredjedelar av tiden.
+
+```bash
+== Säkerhet 145s (main, 320e826)
+2s      Set up job
+1s      Run actions/checkout@v4
+1s      Run actions/setup-node@v4
+11s     Run npm ci
+1s      Beroenden – npm audit (bara det som körs i produktion, high och critical)
+14s     Repot – Trivy (beroenden, hemligheter, Dockerfiles)
+35s     Bygg imagerna och starta appen (compose)
+5s      Imagen – Trivy (api-imagen: Alpine-paket, Node, npm-paket)
+62s     Appen – ZAP baseline (DAST) mot den körande appen
+9s      Post (Trivy-cachen sparas)
+```
+
+| Jobb | `main` (`320e826`) |
+| --- | --- |
+| Quality | 35 s |
+| Build | 24 s |
+| Integration | 48 s |
+| **Säkerhet** | **145 s** |
+| Image | 78 s |
+| Deploy → Azure staging | 110 s |
+| Deploy → Azure Functions | 41 s |
+
+Säkerhet är nu det längsta jobbet som krävs för merge. Men det körs parallellt med de andra,
+och Image väntar redan på Integration (48 s + 78 s ≈ 126 s). En PR blir alltså bara ungefär
+20 s långsammare att få grön, inte 2,5 minuter.
+
+**Rött i en PR:** PR #90 låste `express` till 4.17.1. Säkerhet stoppade i första steget,
+`npm audit` (4 high i express och dess beroenden), och de dyra stegen hoppades över
+([jobb 134036569603](https://github.com/utpost-team/utpost/actions/runs/44082554299/job/134036569603)).
+PR:en stängdes utan merge.
+
+**Staging:** `curl -I` mot staging efter deployen av `320e826` visar `content-security-policy`,
+`x-content-type-options: nosniff` och `x-frame-options: DENY` på `/`, och dessutom `cache-control: no-store` på `/api/health`.
