@@ -1,11 +1,13 @@
 // API-kontraktet mellan api/ och client/.
 
+export type Difficulty = 'lätt' | 'medel' | 'svår';
+
 export interface Guide {
   id: number;
   slug: string;
   title: string;
   region: string;
-  difficulty: "lätt" | "medel" | "svår";
+  difficulty: Difficulty;
   length_km: number;
   body_html: string;
   hero_image: string | null;
@@ -18,7 +20,7 @@ export interface User {
   id: number;
   email: string;
   display_name: string;
-  role: "member" | "editor";
+  role: 'member' | 'editor';
   created_at: string;
 }
 
@@ -81,20 +83,39 @@ export interface PhotoUploadResponse extends Photo {
 
 /** GET /api/tours – varje tur med användare, guide, bilder och loggar inbakade */
 export interface TourWithRelations extends Tour {
-  user?: User; // saknas om användaren raderats – inga foreign keys (Debt 10, #12)
+  user?: User;
   guide: Guide | null;
   photos: Photo[];
   logs: TourLog[];
 }
 
+/** GET /api/tours/:id */
+export interface TourDetail extends Tour {
+  logs: TourLog[];
+  photos: Photo[];
+}
+
 /** POST /api/auth/login */
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
 export interface LoginResponse {
   token: string;
-  // API:et skickar hela användarraden, även password_hash (Debt 5, #7). Typen tar bara med det vi använder.
+  // M8: API:et skickar bara de här fälten (publicUser i api/src/lib/auth.js) – inte raden.
   user: User;
 }
 
-/** Fel från API */
+/** POST /api/auth/register */
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  displayName: string;
+}
+
+/** Felsvar från API:et: { error: '...' }. Vid 400 från valideringen (M8) även vad som var fel, fält för fält. */
 export interface ApiError {
   error: string;
+  issues?: { path: string; message: string }[];
 }

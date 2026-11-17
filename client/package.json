@@ -21,7 +21,7 @@
     "@utpost/shared": "*",
     "dompurify": "^3.4.16",
     "graphql": "^17.0.2",
-    "pinia": "^4.0.3",
+    "pinia": "^4.1.0",
     "vue": "^3.5.40",
     "vue-router": "^5.2.0"
   },
