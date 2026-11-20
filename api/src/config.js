@@ -26,5 +26,7 @@ export const config = {
   cmsDeliveryToken: process.env.CONTENTFUL_DELIVERY_TOKEN ?? '',
   cmsPreviewToken: process.env.CONTENTFUL_PREVIEW_TOKEN ?? '',
   cmsCacheSeconds: Number(process.env.CMS_CACHE_SECONDS ?? 60),
+  // M9 steg 3: hemligheten som CMS:et skickar med när det anropar /api/cms/webhook. Tom = webhooken är stängd.
+  cmsWebhookSecret: process.env.CMS_WEBHOOK_SECRET ?? '',
   uploadDir: "./uploads",
 };
