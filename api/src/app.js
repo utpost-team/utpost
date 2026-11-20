@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth.js';
 import { guidesRouter } from './routes/guides.ts';
 import { toursRouter } from './routes/tours.js';
 import { photosRouter } from './routes/photos.js';
+import { cmsRouter } from './routes/cms.js';
 import { yoga } from './graphql/server.js';
 
 // Appen byggs här och startas i index.js – så går den att anropa i ett test utan att lyssna
@@ -52,6 +53,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/guides', guidesRouter);
 app.use('/api/tours', toursRouter);
 app.use('/api/photos', photosRouter);
+app.use('/api/cms', cmsRouter); // M9: webhooken från CMS:et
 
 // Felhanteraren sist i app.js
 app.use((err, req, res, next) => {
