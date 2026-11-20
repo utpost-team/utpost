@@ -161,4 +161,28 @@ describe("GraphQL-API:et mot riktig databas", () => {
         ]);
     }
   });
+
+  // M9: notiserna kommer ur CMS:et. I testerna är CMS:et avstängt (inga nycklar i pipelinen),
+  // så listan är tom – men frågan ska fungera, och rollkontrollen ska gälla ändå.
+  it("notices: fungerar utan CMS, och utkast kräver rollen editor", async () => {
+    const utan = await graphql(
+      "{ notices { title } guides { slug notices { title } } }",
+    );
+    expect(utan.errors).toBeUndefined();
+    expect(utan.data.notices).toEqual([]);
+    expect(utan.data.guides[0].notices).toEqual([]);
+
+    const anonym = await graphql("{ notices(preview: true) { title } }");
+    expect(anonym.errors[0].extensions.code).toBe("FORBIDDEN");
+
+    const medlem = sign({
+      id: 2,
+      email: "medlem@utpost.se",
+      role: "member",
+    });
+    const somMedlem = await graphql("{ notices(preview: true) { title } }", {
+      token: medlem,
+    });
+    expect(somMedlem.errors[0].extensions.code).toBe("FORBIDDEN");
+  });
 });

@@ -23,6 +23,18 @@ export const resolvers = {
       (
         await query("select distinct region from guides order by region")
       ).rows.map((r) => r.region),
+    // M9: notiserna kommer inte ur databasen utan ur CMS:et (cms/contentful.js). Klienten märker
+    // ingen skillnad – den frågar samma API som förut. Utkast får bara redaktionen se: rollen
+    // kontrolleras HÄR, på servern, och det är servern som håller preview-nyckeln.
+    notices: async (_, { preview }, { user, cms }) => {
+      if (!preview) return cms.notices();
+      if (user?.role !== "editor") {
+        throw new GraphQLError("Förhandsgranskningen kräver rollen editor", {
+          extensions: { code: "FORBIDDEN" },
+        });
+      }
+      return cms.previewNotices();
+    },
     tours: async (_, { limit }, { query }) =>
       (
         await query("select * from tours order by started_at desc limit $1", [
@@ -62,6 +74,10 @@ export const resolvers = {
     bodyHtml: (guide) => guide.body_html,
     heroImage: (guide) => guide.hero_image,
     updatedAt: (guide) => iso(guide.updated_at),
+    // M9: guiden bor i Postgres, notisen i CMS:et – och här möts de i samma svar. Det som kopplar
+    // ihop dem är sluggen, som redaktören skriver i notisens fält guideSlug.
+    notices: async (guide, args, { cms }) =>
+      (await cms.notices()).filter((notice) => notice.guideSlug === guide.slug),
   },
 
   User: {

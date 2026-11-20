@@ -14,6 +14,7 @@
     "dev:api": "npm run dev --workspace=api",
     "dev:client": "npm run dev --workspace=client",
     "seed": "npm run seed --workspace=api",
+    "cms:setup": "node --env-file-if-exists=.env scripts/cms-setup.mjs",
     "lint": "npm run lint --workspace=client",
     "format:check": "npm run format:check --workspace=client",
     "test": "npm run test --workspace=client",
